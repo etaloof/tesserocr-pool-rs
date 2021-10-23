@@ -51,11 +51,17 @@ impl TessApi {
     }
 
     pub fn set_variable(&mut self, key: &str, value: &str) -> Result<(), TesserocrError> {
-        // maybe use a string pool to prevent leaking memory config variables
-        let key = CString::new(key)?.into_raw();
-        let value = CString::new(value)?.into_raw();
+        let key = CString::new(key)?;
+        let value = CString::new(value)?;
         unsafe {
-            capi::TessBaseAPISetVariable(self.raw(), key, value);
+            // SAFETY: The pointers can be freed by us after this call
+            // Tesseract does not store the pointers
+            // see this: https://github.com/tesseract-ocr/tesseract/blob/595346d5482f099d78607d4b31efc84d8dc62b2e/src/ccutil/params.cpp#L84-L91
+            // name is "interned" in some global_vec object:
+            // https://github.com/tesseract-ocr/tesseract/blob/60fd2b4abaa9c5c5c42d32db57576bc95d28a78a/src/ccutil/params.h#L74-L88
+            // value is copied in overloaded assignment operator:
+            // https://github.com/tesseract-ocr/tesseract/blob/df1295ea6b19b43c270afcf971636bf8fd74f34e/src/ccutil/params.h#L259-L264
+            capi::TessBaseAPISetVariable(self.raw(), key.as_ptr(), value.as_ptr());
         }
 
         Ok(())
